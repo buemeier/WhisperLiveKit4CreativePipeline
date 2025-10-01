@@ -155,6 +155,13 @@ async def websocket_endpoint(websocket: WebSocket):
 | `--ssl-keyfile` | Path to the SSL private key file (for HTTPS support) | `None` |
 | `--pcm-input` | raw PCM (s16le) data is expected as input and FFmpeg will be bypassed. Frontend will use AudioWorklet instead of MediaRecorder | `False` |
 
+| Output/Logging options | Description | Default |
+|-----------|-------------|---------| 
+| `--save-output-dir` | Directory to save transcription outputs and/or audio recordings. If not provided, nothing is saved. | `None` |
+| `--save-transcript` | Save transcription output to files. Requires `--save-output-dir` to be set. | `False` |
+| `--save-audio` | Save input audio to WAV files. Requires `--save-output-dir` to be set. | `False` |
+| `--transcript-format` | Format for saved transcripts: `txt` (plain text), `json` (structured with metadata), `srt` (subtitles), or `all` (all formats). | `txt` |
+
 | Translation options | Description | Default |
 |-----------|-------------|---------|
 | `--nllb-backend` | `transformers` or `ctranslate2` | `ctranslate2` |
@@ -266,3 +273,117 @@ docker run --gpus all -p 8000:8000 --name wlk wlk --model large-v3 --language fr
 
 ## 🔮 Use Cases
 Capture discussions in real-time for meeting transcription, help hearing-impaired users follow conversations through accessibility tools, transcribe podcasts or videos automatically for content creation, transcribe support calls with speaker identification for customer service...
+
+## 💾 Saving Transcriptions and Audio
+
+WhisperLiveKit supports saving both transcriptions and input audio to files for later review or processing.
+
+### Basic Usage
+
+```bash
+# Save transcriptions to text files
+whisperlivekit-server --model base --language en \
+  --save-output-dir ./output \
+  --save-transcript
+
+# Save both transcriptions and audio
+whisperlivekit-server --model base --language en \
+  --save-output-dir ./output \
+  --save-transcript \
+  --save-audio
+
+# Save transcriptions in multiple formats
+whisperlivekit-server --model base --language en \
+  --save-output-dir ./output \
+  --save-transcript \
+  --transcript-format all
+```
+
+### Output Organization
+
+When saving is enabled, WhisperLiveKit creates a session-based directory structure:
+```
+output/
+└── session_20240101_143022/
+    ├── transcript.txt      # Plain text transcript
+    ├── transcript.json     # JSON with metadata (timestamps, speakers)
+    ├── transcript.srt      # SRT subtitle format
+    └── recording.wav       # Audio recording (if --save-audio is used)
+```
+
+### Transcript Formats
+
+- **`txt`**: Simple plain-text format with speaker labels
+- **`json`**: Structured format including timestamps, speaker IDs, and detected language
+- **`srt`**: Standard subtitle format compatible with video players
+- **`all`**: Saves in all three formats simultaneously
+
+### Use Cases for Saved Output
+
+- **Meeting minutes**: Review and edit transcriptions after live sessions
+- **Content creation**: Generate subtitles for videos or podcasts
+- **Compliance**: Keep records of conversations for legal or audit purposes
+- **Training data**: Collect transcribed audio for model fine-tuning
+- **Quality assurance**: Compare live transcriptions with offline processing
+
+## 🖥️ Hardware Compatibility
+
+WhisperLiveKit has been tested on various hardware configurations:
+
+### GPU Support
+
+- **NVIDIA GPUs**: Full support for CUDA-enabled GPUs including:
+  - RTX 20/30/40/50 series (e.g., RTX 3060, RTX 4090, RTX 5070 Ti)
+  - Tesla/Quadro/A-series data center GPUs
+  - Requires CUDA 12+ for optimal performance
+  
+- **Apple Silicon**: Native support via MLX backend on M1/M2/M3 chips
+  
+- **AMD GPUs**: Experimental support via ROCm (may require additional configuration)
+
+### Operating Systems
+
+- **Linux**: Full support (Ubuntu 20.04+, Debian, RHEL/CentOS 8+)
+- **Windows**: Full support (Windows 10/11)
+  - Note: FFmpeg must be installed separately or use `--pcm-input` mode
+- **macOS**: Full support (macOS 11+)
+
+### CPU-Only Mode
+
+WhisperLiveKit can run on CPU-only systems, though performance will be significantly slower:
+- Use smaller models (`tiny`, `base`, `small`) for acceptable latency
+- Consider using `--backend faster-whisper` for better CPU performance
+- Minimum recommended: 4-core modern CPU with AVX2 support
+
+## ⚠️ Known Limitations
+
+### Model-Specific
+
+- **Language detection**: The `auto` language detection tends to bias towards English. Specify `--language` explicitly for better results.
+- **Code-switching**: Switching between languages mid-conversation is not well supported.
+- **Large models**: Models larger than `medium` may require 8GB+ VRAM and have higher latency.
+
+### Real-Time Processing
+
+- **Latency**: Real-time latency ranges from 0.3s (tiny model) to 3s (large models). Consider your use case when choosing model size.
+- **Memory usage**: Long sessions accumulate transcription history. For very long sessions (hours), consider periodic restarts.
+- **Network**: WebSocket connections may drop on unstable networks. The frontend attempts to reconnect automatically.
+
+### Diarization
+
+- **Speaker overlap**: Simultaneous speakers may confuse diarization. Works best with clear turn-taking.
+- **Speaker count**: Diarization performs best with 2-4 speakers. More speakers may reduce accuracy.
+- **Cold start**: Initial speaker assignments may be less accurate; improves as more speech is processed.
+
+### Translation
+
+- **Speed vs accuracy**: Translation adds ~0.5-2s latency depending on model size.
+- **Context**: Translation works on sentence segments and may lose context across segment boundaries.
+- **Accuracy**: Translation quality varies by language pair. Major language pairs (e.g., English ↔ Spanish) work best.
+
+### Platform-Specific
+
+- **Windows**: FFmpeg must be in PATH or use `--pcm-input` mode for direct browser audio capture.
+- **Browser compatibility**: WebSocket audio capture requires modern browsers (Chrome 80+, Firefox 75+, Safari 14+).
+- **Docker**: GPU passthrough requires NVIDIA Container Toolkit and proper driver installation.
+
