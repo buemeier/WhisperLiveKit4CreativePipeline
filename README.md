@@ -50,9 +50,18 @@ pip install whisperlivekit
 
 2. **Open your browser** and navigate to `http://localhost:8000`. Start speaking and watch your words appear in real-time!
 
+3. **[Optional] Save transcriptions and audio** for later review:
+   ```bash
+   whisperlivekit-server --model base --language en \
+     --save-output-dir ./my_recordings \
+     --save-transcript --save-audio
+   ```
+   This will save transcripts and audio in `./my_recordings/session_YYYYMMDD_HHMMSS/`
+
 
 > - See [tokenizer.py](https://github.com/QuentinFuxa/WhisperLiveKit/blob/main/whisperlivekit/simul_whisper/whisper/tokenizer.py) for the list of all available languages.
 > - For HTTPS requirements, see the **Parameters** section for SSL configuration options.
+> - For saving options, see the **Saving Transcriptions and Audio** section below.
 
 #### Use it to capture audio from web pages.
 
@@ -90,6 +99,19 @@ whisperlivekit-server --model large-v3 --language fr --target-language da
 
 # Diarization and server listening on */80 
 whisperlivekit-server --host 0.0.0.0 --port 80 --model medium --diarization --language fr
+
+# Save transcriptions and audio for a meeting
+whisperlivekit-server --model base --language en \
+  --save-output-dir ./meeting_recordings \
+  --save-transcript --save-audio \
+  --transcript-format all
+
+# Meeting transcription with speaker identification and all outputs saved
+whisperlivekit-server --model medium --language en \
+  --diarization \
+  --save-output-dir ./meetings \
+  --save-transcript --save-audio \
+  --transcript-format json
 ```
 
 
@@ -107,7 +129,15 @@ transcription_engine = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global transcription_engine
-    transcription_engine = TranscriptionEngine(model="medium", diarization=True, lan="en")
+    transcription_engine = TranscriptionEngine(
+        model="medium", 
+        diarization=True, 
+        lan="en",
+        save_output_dir="./output",
+        save_transcript=True,
+        save_audio=True,
+        transcript_format="all"
+    )
     yield
 
 app = FastAPI(lifespan=lifespan)
