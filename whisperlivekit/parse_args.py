@@ -181,6 +181,34 @@ def parse_args():
         default=False,
         help="If set, raw PCM (s16le) data is expected as input and FFmpeg will be bypassed. Frontend will use AudioWorklet instead of MediaRecorder."
     )
+    
+    # Output/Logging options
+    parser.add_argument(
+        "--save-output-dir",
+        type=str,
+        default=None,
+        help="Directory to save transcription outputs and/or audio recordings. If not provided, nothing is saved."
+    )
+    parser.add_argument(
+        "--save-transcript",
+        action="store_true",
+        default=False,
+        help="Save transcription output to files. Requires --save-output-dir to be set."
+    )
+    parser.add_argument(
+        "--save-audio",
+        action="store_true",
+        default=False,
+        help="Save input audio to WAV files. Requires --save-output-dir to be set."
+    )
+    parser.add_argument(
+        "--transcript-format",
+        type=str,
+        default="txt",
+        choices=["txt", "json", "srt", "all"],
+        help="Format for saved transcripts: txt (plain text), json (structured), srt (subtitles), or all (save in all formats)."
+    )
+    
     # SimulStreaming-specific arguments
     simulstreaming_group = parser.add_argument_group('SimulStreaming arguments (only used with --backend simulstreaming)')
 

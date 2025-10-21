@@ -42,6 +42,10 @@ class TranscriptionEngine:
             "pcm_input": False,
             "disable_punctuation_split" : False,
             "diarization_backend": "sortformer",
+            "save_output_dir": None,
+            "save_transcript": False,
+            "save_audio": False,
+            "transcript_format": "txt",
         }
         global_params = update_with_kwargs(global_params, kwargs)
 

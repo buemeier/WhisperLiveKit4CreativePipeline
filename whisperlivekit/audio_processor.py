@@ -9,6 +9,7 @@ from whisperlivekit.core import TranscriptionEngine, online_factory, online_diar
 from whisperlivekit.silero_vad_iterator import FixedVADIterator
 from whisperlivekit.results_formater import format_output
 from whisperlivekit.ffmpeg_manager import FFmpegManager, FFmpegState
+from whisperlivekit.output_writer import OutputWriter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -114,6 +115,22 @@ class AudioProcessor:
             self.diarization = online_diarization_factory(self.args, models.diarization_model)
         if models.translation_model:
             self.translation = online_translation_factory(self.args, models.translation_model)
+        
+        # Initialize output writer if saving is enabled
+        self.output_writer = None
+        if self.args.save_output_dir and (self.args.save_transcript or self.args.save_audio):
+            try:
+                self.output_writer = OutputWriter(
+                    output_dir=self.args.save_output_dir,
+                    save_transcript=self.args.save_transcript,
+                    save_audio=self.args.save_audio,
+                    transcript_format=self.args.transcript_format,
+                    sample_rate=self.sample_rate
+                )
+                logger.info(f"Output writer initialized. Saving to: {self.output_writer.session_dir}")
+            except Exception as e:
+                logger.error(f"Failed to initialize output writer: {e}")
+                self.output_writer = None
 
     def convert_pcm_to_float(self, pcm_buffer):
         """Convert PCM buffer in s16le format to normalized NumPy array."""
@@ -456,6 +473,12 @@ class AudioProcessor:
                     remaining_time_transcription=state.remaining_time_transcription,
                     remaining_time_diarization=state.remaining_time_diarization if self.args.diarization else 0
                 )
+                
+                # Save transcript lines to output writer if configured
+                if self.output_writer and self.output_writer.save_transcript and lines:
+                    for line in lines:
+                        if line.text.strip():  # Only save non-empty lines
+                            self.output_writer.add_transcript_line(line.to_dict())
                                 
                 should_push = (response != self.last_response_content)
                 if should_push and (lines or buffer_transcription or buffer_diarization or response_status == "no_audio_detected"):
@@ -547,6 +570,17 @@ class AudioProcessor:
         """Clean up resources when processing is complete."""
         logger.info("Starting cleanup of AudioProcessor resources.")
         self.is_stopping = True
+        
+        # Finalize output writer before cleaning up
+        if self.output_writer:
+            try:
+                logger.info("Finalizing output writer...")
+                self.output_writer.finalize()
+                self.output_writer.cleanup()
+                logger.info("Output writer finalized successfully.")
+            except Exception as e:
+                logger.error(f"Error finalizing output writer: {e}")
+        
         for task in self.all_tasks_for_cleanup:
             if task and not task.done():
                 task.cancel()
@@ -620,6 +654,11 @@ class AudioProcessor:
         
         if aligned_chunk_size == 0:
             return
+        
+        # Save raw PCM audio chunk if output writer is configured
+        if self.output_writer and self.output_writer.save_audio:
+            self.output_writer.write_audio_chunk(self.pcm_buffer[:aligned_chunk_size])
+        
         pcm_array = self.convert_pcm_to_float(self.pcm_buffer[:aligned_chunk_size])
         self.pcm_buffer = self.pcm_buffer[aligned_chunk_size:]
 
